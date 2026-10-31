@@ -19,7 +19,7 @@
  */
 
 import { existsSync, statSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 import { getLifeosDir } from "./Paths";   // the one resolver for install roots (public issue #1665, @rogdex24)
 import { homedir } from "node:os";
 import { invariant } from "./Invariant";
@@ -98,11 +98,41 @@ export interface LifeosPaths {
   projectsDir: string;
 }
 
+/** What a vault folder holds, which decides how VaultSync renders it. */
+export type LifeosVaultSourceKind = "projects" | "people" | "areas";
+
+export interface LifeosVaultSource {
+  kind: LifeosVaultSourceKind;
+  /** Folder inside the vault, relative to `vault.path`. */
+  folder: string;
+  /** USER-tree file VaultSync generates from it, relative to `paths.userDir`. */
+  target: string;
+  /** Entry names (file or folder basenames) to leave out. */
+  exclude: string[];
+  /** projects only: frontmatter `status` values that earn a full table row; the rest are listed compactly. */
+  activeStatus: string[];
+}
+
+/**
+ * An Obsidian (or any Markdown) vault that stays the single source for the assets
+ * it already holds — projects, people, research areas. VaultSync generates the
+ * matching USER files from it, so they are never maintained twice.
+ */
+export interface LifeosVault {
+  /** Absolute vault root. */
+  path: string;
+  /** Vault name for obsidian:// links; defaults to the root folder's name. */
+  name: string;
+  sources: LifeosVaultSource[];
+}
+
 export interface LifeosConfig {
   principal: LifeosPrincipal;
   da: LifeosDa;
   integrations: LifeosIntegrations;
   paths: LifeosPaths;
+  /** Absent when no [vault] is configured — the USER files are then hand-maintained as before. */
+  vault?: LifeosVault;
 }
 
 // ─────────── Resolution ───────────
@@ -248,7 +278,36 @@ function validateAndNormalize(raw: unknown, path: string): LifeosConfig {
         root.paths?.projectsDir ?? root.paths?.projects_dir ?? resolve(DEFAULT_HOME, "Projects"),
       ),
     },
+    vault: normalizeVault(root.vault, path),
   };
+}
+
+const VAULT_KINDS: readonly LifeosVaultSourceKind[] = ["projects", "people", "areas"];
+
+function normalizeVault(raw: unknown, path: string): LifeosVault | undefined {
+  if (raw === undefined) return undefined;
+  const v = raw as Record<string, any>;
+  if (!v || typeof v !== "object" || typeof v.path !== "string" || !v.path) {
+    throw new Error(`LifeosConfig: [vault] requires a non-empty path — see ${path}`);
+  }
+  const strings = (x: unknown) => (Array.isArray(x) ? x.filter((s): s is string => typeof s === "string") : []);
+  const sources = (Array.isArray(v.sources) ? v.sources : []).map((s: Record<string, any>, i: number) => {
+    if (!s || !VAULT_KINDS.includes(s.kind)) {
+      throw new Error(`LifeosConfig: [[vault.sources]] #${i + 1} needs kind = one of ${VAULT_KINDS.join(", ")} — see ${path}`);
+    }
+    if (typeof s.folder !== "string" || typeof s.target !== "string" || !s.target.endsWith(".md") || /(^|[\\/])\.\.([\\/]|$)/.test(s.target)) {
+      throw new Error(`LifeosConfig: [[vault.sources]] #${i + 1} needs folder and a .md target inside the USER tree — see ${path}`);
+    }
+    return {
+      kind: s.kind,
+      folder: s.folder,
+      target: s.target,
+      exclude: strings(s.exclude),
+      activeStatus: strings(s.active_status ?? s.activeStatus),
+    } satisfies LifeosVaultSource;
+  });
+  const root = expandHome(v.path);
+  return { path: root, name: typeof v.name === "string" && v.name ? v.name : basename(root), sources };
 }
 
 export const PRINCIPAL_VOICE_DEFAULT_TAKES = 3;

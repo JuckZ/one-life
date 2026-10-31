@@ -46,6 +46,7 @@ LifeOS configuration follows the **system/user separation** contract (`LIFEOS/DO
 | `LIFEOS/USER/CONFIG/OPERATIONAL_PREFERENCES.md` | USER | Per-principal operational rules: repo conventions, env paths, vendor-specific doctrine (Cloudflare token, deploy semantics). `@`-imported directly from `CLAUDE.md`: Claude Code follows nested `@`-imports only to a limited depth, so the startup set is listed explicitly in one place (public issue #2233, @jacobo-ortiz). |
 | `LIFEOS/USER/CONFIG/LIFEOS_CONFIG.toml` | USER | Typed user config (identity name/pronunciation/timezone, integration credentials, paths). Read via `loadLifeosConfig()` from `LifeosConfig.ts`. |
 | `LIFEOS/TOOLS/LifeosConfig.ts` | SYSTEM (INTERFACE) | Typed loader. Returns a strongly-typed object; the schema is the SYSTEM↔USER contract. |
+| `LIFEOS/TOOLS/VaultSync.ts` | SYSTEM | Generates `PROJECTS.md`, `CONTACTS.md` and `AREAS.md` from the Obsidian vault named in `LIFEOS_CONFIG.toml` `[vault]`, so the vault stays the one source. See `LIFEOS/DOCUMENTATION/Config/VaultSync.md`. |
 | `LIFEOS/TOOLS/MergeSettings.ts` | SYSTEM | Deep-merge driver that produces `settings.json` from `settings.system.json` + `settings.user.json` at SessionStart. |
 | `LIFEOS/USER/INTEGRATIONS/{unifi,airgradient}.yaml` | USER | Per-integration credentials/endpoints for private `_*` skills. |
 | `LIFEOS/USER/WORK/work_repo.json` | USER (optional) | The Work System's repo binding, `{"repo":"owner/repo"}`. Read by `hooks/lib/work-config.ts`, which enables the Work System only after `gh` confirms the repo is private. |
@@ -158,3 +159,4 @@ The diagram is the boundary made mechanical: two inputs, one deterministic merge
 - Master architecture: `LIFEOS/DOCUMENTATION/LifeosSystemArchitecture.md`
 - Release skill intents (private): the repo-sync intent, ReleaseCandidate, CreateRelease
 - Hook system: `LIFEOS/DOCUMENTATION/Hooks/HookSystem.md` (Native enforcement, MergeSettings invocation)
+- Vault sync (Obsidian as the source for projects, people, areas): `LIFEOS/DOCUMENTATION/Config/VaultSync.md`

@@ -39,3 +39,21 @@ token_env_var = "CLOUDFLARE_API_TOKEN"
 # public issue #1665, @rogdex24
 user_dir = "~/.claude/LIFEOS/USER"
 projects_dir = "~/Projects"
+
+# [vault] — optional. Keep projects, people and research areas in an Obsidian vault
+# and let LIFEOS/TOOLS/VaultSync.ts generate PROJECTS.md / CONTACTS.md / AREAS.md
+# from it. See LIFEOS/DOCUMENTATION/Config/VaultSync.md.
+#
+# [vault]
+# path = "~/Notes"
+#
+# [[vault.sources]]
+# kind = "projects"
+# folder = "Projects"
+# target = "PROJECTS.md"
+# active_status = ["active", "in-progress"]
+#
+# [[vault.sources]]
+# kind = "people"
+# folder = "People"
+# target = "CONTACTS.md"

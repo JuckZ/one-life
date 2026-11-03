@@ -76,6 +76,42 @@ bun ~/.claude/LIFEOS/WORKFLOWS/engine/schedule-install.ts install-dispatcher    
 schtasks /Query /TN "\LifeOS\com.lifeos.derivedsync" /V /FO LIST                 # one task, from the OS side
 ```
 
+### Windows known issues and diagnosis
+
+Most Windows failures come from code that assumes POSIX paths or permission bits. Windows paths use `\`, compare case-insensitively and start at a drive (`C:\`), and `stat` reports `0o666` for every file and directory whatever `chmod` asked. Four idioms are wrong there without any error: `p.startsWith(root + "/")`, `abs.replace(ROOT + "/", "")`, `abs.split("/").pop()` and `(stat.mode & 0o777) === 0o600`. New code uses `hooks/lib/portable-path.ts` instead (`isWithin`, `rootRelativeKey`, `hasPosixModes`). Each of those helpers takes the path implementation as an argument, so a test can pass `path.win32` and cover Windows on any CI.
+
+**Memory writes refused (fixed by the portable-path change).** The reviewer fails on every run and `MemoryHealthCheck` goes CRITICAL. `reviewer-failed-items.jsonl` fills with `EWRITE_FAILED: memory write refused at the system/user boundary: target C:\...\PRINCIPAL_MEMORY.md does not resolve inside the USER_DATA repo`. Knowledge and idea notes fail the same way. Four causes stacked on that path:
+
+- `Boundary.confinedPath` walked `C:\...` from `\`, so every target counted as outside.
+- The snapshot name used `split("/")` and escaped the snapshot directory.
+- `atomicWrite` asserted mode `0600`.
+- Ledger rows were keyed by the absolute path, which made `CortexLedger verify` report permanent byte-drift.
+
+An install whose `hooks/lib/portable-path.ts` exists has the fix.
+
+**Guards that did nothing (same fix).** For every Windows path under `~/.claude`, `system-file-guard-core.rootFor` returned `null` and `containment-zones.isContained` returned `false`. The pre-commit leak scan (`StagedLeakScan.ts`, through `evaluateWrite`) therefore found no guarded tree, and no containment zone applied. `handed-paths.rootOf` and `change-detection` used the same prefix test and had the same bug.
+
+**Writes that threw after succeeding (same fix).** Three places asserted POSIX permission bits after their write had already landed, so each one threw:
+
+- `Secrets.ts set`
+- `event-capture.appendPrivateRecord`
+- `CacheDir`
+
+```bash
+bun ~/.claude/LIFEOS/TOOLS/MemoryHealthCheck.ts                          # reviewer runs, ledger tail, delta surface
+tail -n 5 ~/.claude/LIFEOS/MEMORY/OBSERVABILITY/reviewer-failed-items.jsonl  # what the reviewer could not write, and why
+bun ~/.claude/LIFEOS/TOOLS/CortexLedger.ts verify                         # ledger vs live memory files
+test -f ~/.claude/hooks/lib/portable-path.ts && echo "has the Windows path fix"
+```
+
+The items parked by such a failure are `EWRITE` rows. `ParkedReplay.ts` replays only `EDRIFT` rows, so review the `EWRITE` items one at a time instead of replaying them in bulk. After the fix, the health check's "N of last 5 reviewer runs failed" warning clears by itself once enough runs succeed.
+
+**Still open** (none of these blocks a write; to fix, move each to the helpers above):
+
+- Display-only `replace(ROOT + "/")` prints an absolute path on Windows: `IntegrityCheck`, `UpdateModels`, `HookHealer`, `RebuildArchSummary`, `MemoryRetriever`, `KnowledgeLint`, `MigrateKnowledge`, `SkillDriftLint`, `IsaLadder`.
+- About 60 `startsWith(x + "/")` checks remain. Most are invariants that fail closed on Windows (they throw rather than let a path through), for example in `CheckpointPerISC`, `intent-voice`, `STATVS/Rewind` and `CodexProgress`. The ones that only lose a label or a skip are `system-surfaces`, `SubagentGitSandbox.labelFor` and `LifeOSHooks` `isPrivate`.
+- POSIX-mode checks in the Relay (`RELAY/context/Fold.ts`, `RELAY/bridge/Probe.ts`), `RINGS/Rings.ts` and `CODEX/Mount.ts`. The Relay is macOS-only.
+
 ## Examples
 
 ### One command, the whole fleet

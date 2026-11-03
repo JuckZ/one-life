@@ -251,17 +251,17 @@ function withWindowsKernelLock<T>(lockPath: string, action: () => T, deadlineMs:
     return { ok: false, message: `lock directory create failed: ${(e as Error)?.message ?? String(e)}` };
   }
   const deadline = Date.now() + deadlineMs;
-  let h: bigint | null;
-  for (;;) {
-    h = w.open(lockPath);
-    if (h !== null) break;
+  let h = w.open(lockPath);
+  while (h === null) {
     if (Date.now() >= deadline) return { ok: false, message: `lock held past deadline: ${lockPath}` };
     Bun.sleepSync(retryMs <= 1 ? retryMs : retryMs / 2 + Math.random() * (retryMs / 2));
+    h = w.open(lockPath);
   }
+  const held = h;
   try {
     return { ok: true, value: action() };
   } finally {
-    w.close(h);
+    w.close(held);
   }
 }
 

@@ -59,7 +59,7 @@ import {
 import { InvariantViolation, invariant } from "./Invariant";
 import { getClaudeDir } from "./Paths"; // public issue #1665 @rogdex24, #1584 @ramazanpolat — aliased resolve sites missed by the 09-03 sweep
 import { spawnSync } from "node:child_process";
-import { dirname, relative, resolve as pathResolve } from "node:path";
+import { basename as pathBasename, dirname, relative, resolve as pathResolve, sep } from "node:path";
 import { appendEvent, archiveContent, entriesHash, foldState, readRows, sha256, type AppendResult } from "./lib/CortexLedgerCore";
 import { isInstructionShaped } from "./InjectionShapes";
 import { assertInsideUserData } from "./lib/ForeignDataCheck";
@@ -588,14 +588,17 @@ function tightenMode(p: string, want: number): void {
 
 function snapshotBeforeWrite(absPath: string, priorContent: string): void {
   try {
-    const base = absPath.split("/").pop()!.replace(/\.md$/, "");
+    const base = pathBasename(absPath).replace(/\.md$/, "");
     const stamp = new Date().toISOString().replace(/[:.]/g, "-");
     const target = pathResolve(SNAPSHOT_DIR, `${base}__${stamp}.md`);
     invariant(dirname(target) === SNAPSHOT_DIR && base.length > 0, `snapshot target ${target} must sit directly in ${SNAPSHOT_DIR}`);
     // A ring created by an older build (0755 / 0644) is tightened before the new copy lands in it.
     if (existsSync(SNAPSHOT_DIR)) tightenMode(SNAPSHOT_DIR, SNAPSHOT_DIR_MODE);
     boundaryAtomicWrite(target, priorContent, { mode: SNAPSHOT_FILE_MODE, dirMode: SNAPSHOT_DIR_MODE });
-    invariant((statSync(SNAPSHOT_DIR).mode & 0o777 & ~SNAPSHOT_DIR_MODE) === 0, `snapshot dir ${SNAPSHOT_DIR} is wider than 0700`);
+    // No POSIX permission bits on Windows (stat reports 0o777 for directories); the profile ACL applies instead.
+    if (process.platform !== "win32") {
+      invariant((statSync(SNAPSHOT_DIR).mode & 0o777 & ~SNAPSHOT_DIR_MODE) === 0, `snapshot dir ${SNAPSHOT_DIR} is wider than 0700`);
+    }
     // Trim the ring: keep the newest SNAPSHOT_RING per base file; tighten the survivors.
     const mine = readdirSync(SNAPSHOT_DIR)
       .filter((f: string) => f.startsWith(`${base}__`))
@@ -863,7 +866,7 @@ export function adoptLive(filePath: string, opts: { updatedBy: string; sessionId
   if (!existsSync(abs)) return { ok: false, code: "EINVAL_PATH", message: `Memory file does not exist: ${abs}` };
   const result = withLock(abs, (): AdoptResult => {
     const content = readFileSync(abs, "utf8");
-    const rel = abs.replace(CLAUDE_ROOT + "/", "");
+    const rel = relative(CLAUDE_ROOT, abs).split(sep).join("/");
     const drift = inspectDrift(rel, content, parseMemoryContent(content).entries);
     if (drift === null) return { ok: true, adopted: false, file: rel };
     if (drift.invalid.length > 0) {
@@ -962,7 +965,7 @@ export function setEntries(
     const parsed = parseMemoryContent(content);
     const priorEntries = parsed.entries;
     const newEntries = validated.accepted;
-    const rel = abs.replace(CLAUDE_ROOT + "/", "");
+    const rel = relative(CLAUDE_ROOT, abs).split(sep).join("/");
 
     // Drift check (curated ⟺ folded): when an out-of-band writer changed the
     // entries region, adopt that edit as a ledger event first, so the guards
@@ -1182,7 +1185,7 @@ export function restoreContent(
   const abs = pathCheck.abs;
 
   const result = withLock(abs, () => {
-    const rel = abs.replace(CLAUDE_ROOT + "/", "");
+    const rel = relative(CLAUDE_ROOT, abs).split(sep).join("/");
     // A restore is recovery, not curation, but recovery content predating a redaction must not resurrect it.
     const tombstoned = tombstonedIn(parseMemoryContent(content).entries);
     if (tombstoned.length > 0) return redactedRefusal(tombstoned, "restore content");

@@ -24,7 +24,7 @@ import {
 } from "node:fs"
 import { randomUUID } from "node:crypto"
 import { hostname } from "node:os"
-import { basename, dirname, isAbsolute, join, sep } from "node:path"
+import { basename, dirname, isAbsolute, join, parse, sep } from "node:path"
 import { invariant, InvariantViolation } from "../Invariant"
 import {
   isVerificationCode as labelIsVerificationCode,
@@ -35,6 +35,8 @@ import {
 // ── confinedPath ─────────────────────────────────────────────────────────────
 
 function within(real: string, realRoot: string): boolean {
+  // NTFS is case-insensitive: a path typed as c:\users\... is the same place as C:\Users\...
+  if (process.platform === "win32") { real = real.toLowerCase(); realRoot = realRoot.toLowerCase() }
   if (real === realRoot) return true
   const prefix = realRoot.endsWith(sep) ? realRoot : realRoot + sep
   return real.startsWith(prefix)
@@ -58,12 +60,15 @@ export function confinedPath(root: string, p: string): string | null {
   try { realRoot = realpathSync(root) } catch { return null }
 
   const relative = !isAbsolute(p)
-  let cur = relative ? realRoot : sep
+  // An absolute path starts at its own filesystem root ("/" on POSIX, "C:\" or "\\host\share\" on
+  // Windows). Starting at a bare separator made "C:" a component under "\", which never exists.
+  const start = relative ? "" : parse(p).root
+  let cur = relative ? realRoot : start
   let curIsDir = true
   let missing = false
   const tail: string[] = []
 
-  for (const comp of p.split(sep)) {
+  for (const comp of p.slice(start.length).split(sep)) {
     if (comp === "" || comp === ".") continue
     if (missing) {
       if (comp === "..") return null
@@ -74,7 +79,7 @@ export function confinedPath(root: string, p: string): string | null {
     if (comp === "..") {
       cur = dirname(cur)
     } else {
-      const next = cur === sep ? sep + comp : cur + sep + comp
+      const next = cur.endsWith(sep) ? cur + comp : cur + sep + comp
       let st
       try { st = lstatSync(next) } catch (e) {
         if (errCode(e) === "ENOENT") { missing = true; tail.push(comp); continue }
@@ -159,7 +164,11 @@ export function atomicWrite(path: string, data: string | Uint8Array, opts: Atomi
       let off = 0
       while (off < bytes.length) off += writeSync(fd, bytes, off, bytes.length - off)
       fsyncSync(fd)
-      invariant((fstatSync(fd).mode & 0o777) === mode, `atomicWrite: temp file mode is not 0o${mode.toString(8)}`)
+      // Windows has no POSIX permission bits (stat reports 0o666 whatever was asked); access there is
+      // governed by the ACL the user profile already carries, so the mode check only means something elsewhere.
+      if (process.platform !== "win32") {
+        invariant((fstatSync(fd).mode & 0o777) === mode, `atomicWrite: temp file mode is not 0o${mode.toString(8)}`)
+      }
     } finally {
       closeSync(fd)
     }

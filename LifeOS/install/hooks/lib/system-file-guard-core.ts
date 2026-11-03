@@ -24,6 +24,7 @@ import { homedir } from "node:os";
 import { createHash } from "node:crypto";
 import { isContained, isPatternAllowlisted, relativeToClaudeRoot } from "./containment-zones";
 import { getClaudeDir } from "./paths";
+import { isWithin } from "./portable-path";
 
 /**
  * The guarded roots (deny side), resolved at call time. Two, deduplicated: the
@@ -46,7 +47,8 @@ export function guardRoots(): string[] {
 export function rootFor(absolutePath: string): string | null {
   let best: string | null = null;
   for (const root of guardRoots()) {
-    const inside = absolutePath === root || absolutePath.startsWith(root + "/");
+    // A path test, not a string test: on Windows `root + "/"` never prefixed a real path, so the guard found no tree.
+    const inside = isWithin(absolutePath, root);
     if (inside && (best === null || root.length > best.length)) best = root;
   }
   return best;

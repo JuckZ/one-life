@@ -22,6 +22,7 @@
  */
 import { execFileSync } from "node:child_process";
 import { platform } from "node:os";
+import { activeSpans } from "../awClient.ts";
 import type { ConduitConfig } from "../config.ts";
 import type { ConduitEvent } from "../types.ts";
 
@@ -38,9 +39,38 @@ function warnOnce(reason: string): void {
   );
 }
 
+/**
+ * Windows (and any non-macOS host running ActivityWatch): measured foreground time over the
+ * last poll interval, AFK excluded. One event per app, `intervalSec` = seconds actually spent
+ * in it — rollup already values an app-focus event at `detail.intervalSec`, so no rollup
+ * change is needed. App names only; window titles are never stored (privacy contract).
+ * Stateless like the rest of Conduit: a missed poll loses that interval, a late one re-reads
+ * a window of the configured length. null from the client = ActivityWatch not running.
+ */
+function captureViaActivityWatch(config: ConduitConfig): ConduitEvent[] | null {
+  const end = new Date();
+  const start = new Date(end.getTime() - config.pollIntervalSec * 1000);
+  const spans = activeSpans(start, end);
+  if (spans === null) return null;
+  const perApp = new Map<string, number>();
+  for (const s of spans) perApp.set(s.app, (perApp.get(s.app) ?? 0) + (s.end.getTime() - s.start.getTime()) / 1000);
+  const ts = end.toISOString();
+  return [...perApp.entries()]
+    .filter(([, sec]) => sec >= 1)
+    .map(([app, sec]) => ({
+      ts,
+      type: "app-focus" as const,
+      source: "appFocus",
+      app,
+      detail: { intervalSec: Math.round(sec), via: "activitywatch" },
+    }));
+}
+
 export function capture(config: ConduitConfig): ConduitEvent[] {
   if (platform() !== "darwin") {
-    warnOnce(`app-focus requires macOS \`osascript\`, host is ${platform()}`);
+    const viaAw = captureViaActivityWatch(config);
+    if (viaAw !== null) return viaAw;
+    warnOnce(`app-focus requires macOS \`osascript\` or a running ActivityWatch (127.0.0.1:5600); host is ${platform()}`);
     return [];
   }
   try {

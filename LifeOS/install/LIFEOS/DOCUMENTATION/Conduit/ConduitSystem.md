@@ -17,7 +17,7 @@ version: 1.4.5
 
 **Current-state split:** Atlas (`../Atlas/AtlasSystem.md`) is the state of owned assets, Conduit is the principal's observed activity, and Vigil (`../Vigil/VigilSystem.md`) carries events.
 
-**Component version:** Conduit v1.2.0 (`CONDUIT_VERSION` in `LIFEOS/PULSE/Conduit/version.ts`) · first shipped in LifeOS 6.1.0.
+**Component version:** Conduit v1.3.0 (`CONDUIT_VERSION` in `LIFEOS/PULSE/Conduit/version.ts`) · first shipped in LifeOS 6.1.0.
 
 ## Design principles
 
@@ -174,7 +174,17 @@ failed read never clobbers a good one. The tab reads the cached file; it never c
 
 > launchd gives jobs a minimal PATH that lacks `claude`, so the installer bakes the installer's PATH
 > into the plist (`EnvironmentVariables`) — otherwise the scheduled job `spawn ENOENT`s and falls back
-> forever. On Linux both installers write a `systemd --user` unit instead (`LIFEOS/TOOLS/lib/SystemdUser.ts`, same installer-PATH bake). The app-focus adapter is macOS-only (`osascript`); elsewhere rollup falls back to time derived from session cadence and labels it as derived.
+> forever. On Linux both installers write a `systemd --user` unit instead (`LIFEOS/TOOLS/lib/SystemdUser.ts`, same installer-PATH bake). The app-focus adapter reads `osascript` on macOS. On Windows and Linux it reads a local ActivityWatch server (`127.0.0.1:5600`, window ∩ not-AFK, app names only, via `PULSE/Conduit/awClient.ts`) when one is running; with neither, rollup falls back to time derived from session cadence and labels it as derived.
+
+## Attention reader (the DA's live read, separate from Conduit)
+
+Conduit is the daily mirror and stays verdict-free. `LIFEOS/TOOLS/Attention.ts` is a separate layer the DA reads: live, AFK-aware window time from ActivityWatch → (1) inputs for inferring the principal's current state (`away`, `late-night`, `extended-distraction`, `scattered`, `focused`, `unclear`, each with a confidence and a `why`) and (2) evidence-carrying signals tied to TELOS ids (S1 daily leverage, C2 context switching, C3 late-night/game binges). No single alignment score; under `minActiveMin` of data it raises nothing.
+
+- CLI: `bun LIFEOS/TOOLS/Attention.ts now|day [date] [--json] [--titles]`.
+- Per turn: `hooks/AttentionSurface.hook.ts` (UserPromptSubmit) injects one `<attention-read>` block. A flag re-surfaces at most once per 60 minutes; cursor `MEMORY/STATE/attention-surface.json`; silent when ActivityWatch is down or in subagents.
+- Categories and thresholds are data: `USER/CONDUIT/attention.json` (self-initialising).
+- Titles are read locally only to categorise (so `x.com` counts as outward-facing) and are dropped before any output or cache. `--titles` is for a human at the terminal.
+- Boundary: Conduit and TELOS never write each other's files; Attention writes neither.
 
 ## Configuration (`USER/CONDUIT/config.json`)
 
@@ -202,12 +212,12 @@ records are kept.
 - Per-source opt-in; disable any source in config.
 - Tiered retention: raw discarded after `retentionDays`; daily record kept.
 - Kill switch: `enabled: false`, or `InstallConduit.ts --uninstall`.
-- No screenshots, no window titles, no message content in v1.
+- No screenshots, no window titles stored, no message content in v1. (The Attention reader sees titles locally for categorisation only and never persists or prints them.)
 
 ## Versioning
 
 `CONDUIT_VERSION` (`version.ts`) tracks the component; bump on any change to the event
-schema, adapter contract, or rollup format. Conduit v1.0.0 first shipped in LifeOS 6.1.0; the current version is 1.2.0.
+schema, adapter contract, or rollup format. Conduit v1.0.0 first shipped in LifeOS 6.1.0; the current version is 1.3.0 (1.3: app-focus adapter on Windows/Linux via ActivityWatch).
 
 ## Roadmap
 

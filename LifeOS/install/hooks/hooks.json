@@ -160,6 +160,15 @@
       {
         "hooks": [
           {
+            "command": "$HOME/.claude/hooks/AttentionSurface.hook.ts",
+            "timeout": 5,
+            "type": "command"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
             "command": "$HOME/.claude/hooks/VoiceMode.hook.ts",
             "timeout": 5,
             "type": "command"

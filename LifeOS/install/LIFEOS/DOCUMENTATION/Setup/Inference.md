@@ -33,6 +33,8 @@ The `anthropic` vendor needs only a logged-in `claude` command. The `openai` ven
 | `anthropic-api` | `ANTHROPIC_API_KEY_LIFEOS` |
 | Google vision judge (default) | `GOOGLE_API_KEY` |
 
+For `anthropic`, the helper removes inherited API/proxy credentials and Desktop's `CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST` flag before launching `claude --safe-mode`. This lets the child use its independent CLI subscription login, including an explicit `CLAUDE_CODE_OAUTH_TOKEN`, while preserving the other auth selectors and selected config profile. A Desktop proxy login alone does not supply that independent login. Check it without sending a model request using `claude --safe-mode auth status` from a standalone CLI environment. This does not change the configured vendor or enable API billing.
+
 Never paste a key into a config file or a chat. Store one with `bun LIFEOS/TOOLS/Secrets.ts set KEY_NAME`: it reads the value from your terminal with echo off (or from a pipe), writes `.env` at mode 0600, and reseals when sealing is set up. If you edit `.env` by hand instead, run `bun LIFEOS/TOOLS/Secrets.ts seal` afterwards. Check that a key is present, without printing it (a key whose value is empty reads `no`):
 
 ```bash

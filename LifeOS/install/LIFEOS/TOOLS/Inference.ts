@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * @version 1.9.4
+ * @version 1.9.5
  * ============================================================================
  * INFERENCE - Unified inference tool with four run levels
  * ============================================================================
@@ -116,6 +116,22 @@ export function resolveClaudeBin(): string {  // exported for algorithm.ts (PR #
   if (fromPath) return fromPath;
   const fallback = join(homedir(), ".local", "bin", "claude");
   return existsSync(fallback) ? fallback : "claude";
+}
+
+/** Independent subscription login for the claude child; never mutate the host's environment. */
+export function claudeSubscriptionEnv(parent: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  const env = { ...parent };
+  // Hooks run inside Claude Code; the independent child must bypass its nested-session guard.
+  delete env.CLAUDECODE;
+  // API/proxy credentials override OAuth and can silently move subscription work onto API billing.
+  delete env.ANTHROPIC_API_KEY;
+  delete env.ANTHROPIC_AUTH_TOKEN;
+  delete env.ANTHROPIC_BASE_URL;
+  // Desktop's managed-provider flag disables the CLI's saved-login fallback. Once its proxy
+  // credentials are removed, release host auth ownership too, or the child is "Not logged in".
+  delete env.CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST;
+  // Keep the other auth/profile selectors, including CLAUDE_CODE_OAUTH_TOKEN: standalone CLI OAuth still works.
+  return env;
 }
 
 /**
@@ -450,19 +466,7 @@ async function inferenceAttempt(options: InferenceOptions, modelOverride?: strin
   const model = modelOverride ?? options.model ?? config.model;
 
   return new Promise((resolve) => {
-    // Unset CLAUDECODE so nested `claude` invocations don't trigger the
-    // nested-session guard (hooks run inside Claude Code's environment).
-    const env = { ...process.env };
-    delete env.CLAUDECODE;
-
-    // BILLING: Always use subscription. Anthropic's credential precedence chain
-    // (https://code.claude.com/docs/en/authentication#authentication-precedence)
-    // puts BOTH ANTHROPIC_API_KEY and ANTHROPIC_AUTH_TOKEN above CLAUDE_CODE_OAUTH_TOKEN,
-    // so either one in env will silently override OAuth. Bun auto-loads ~/.claude/.env
-    // into child processes, and some MCP/plugin setups export ANTHROPIC_AUTH_TOKEN —
-    // either path leaks subscription work onto API-key billing. Scrub both.
-    delete env.ANTHROPIC_API_KEY;
-    delete env.ANTHROPIC_AUTH_TOKEN;
+    const env = claudeSubscriptionEnv();
     // Headless subprocess: never the desktop voice channel, even when spawned
     // from a terminal session whose TERM the child would inherit. Explicit
     // channels (imessage, ...) pass through. (2026-08-14 scheduled voice leak.)
@@ -472,10 +476,6 @@ async function inferenceAttempt(options: InferenceOptions, modelOverride?: strin
     env.LIFEOS_NOTIFICATION_CHANNEL = !env.LIFEOS_NOTIFICATION_CHANNEL || env.LIFEOS_NOTIFICATION_CHANNEL === 'desktop'
       ? 'headless'
       : env.LIFEOS_NOTIFICATION_CHANNEL;
-    // Also scrub ANTHROPIC_BASE_URL: a local proxy (e.g. a LiteLLM gateway) would
-    // still be targeted after the child loses its credentials above, so every
-    // nested call fails auth (401) and retries until timeout. Force real Anthropic API.
-    delete env.ANTHROPIC_BASE_URL;
     // The CLI finds its subscription login in the macOS Keychain by USER. A workflow step or launchd job may hand the
     // child only PATH and HOME, and then every call answers "Not logged in" (a scheduled judge call
     // can fail this way on its first run).

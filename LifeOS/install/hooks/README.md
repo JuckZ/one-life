@@ -198,7 +198,7 @@ interface StopPayload extends BasePayload {
 | `MemoryTurnStart.hook.ts` | The ONE per-prompt memory hook — dispatches `LoadMemory` + `MemoryDeltaSurface` | No | `USER/PRINCIPAL/PRINCIPAL_MEMORY.md`, `DA_MEMORY.md` (timeout 8) |
 | `AlgorithmNudge.hook.ts` | Deterministic event nudges (run state, late-ISA, skill-gap) → additionalContext | No | Session run state — zero inference (timeout 5) |
 | `TimeContext.hook.ts` | Inject a live, per-turn wall-clock line | No | `settings.json` `principal.timezone`, falls back to UTC (timeout 5). Ported from public PR #1511, credit @anikinsasha |
-| `AttentionSurface.hook.ts` | Inject the DA's live attention read (`<attention-read>`: inferred state + TELOS-tied flags, 60-min flag cooldown) | No | local ActivityWatch via `LIFEOS/TOOLS/Attention.ts`; silent if unavailable (timeout 5) |
+| `AttentionSurface.hook.ts` | Shim: inject the DA's live attention read (`<attention-read>`) by running the standalone `one-watch hook` | No | `$ONE_WATCH_DIR` or `~/Projects/one-watch`; silent if absent, slow, or ActivityWatch is down (timeout 5) |
 | `VoiceMode.hook.ts` | Voice mode's per-prompt half: stops the DA's speech and injects the voice-mode instruction when voice mode is on for the session; silent otherwise | No | Voice mode session state (timeout 5) |
 | `ModelDriftGuard.hook.ts` | Warn when the model serving the session is not the one `settings.json` configures; never changes the model and never judges the work | No | `settings.json` `model` pin, transcript tail (timeout 5) |
 | `TurnRecord.hook.ts` | One STATVS `turn` row per human prompt (commits, model, effort, channel, idle) so Rewind and Replay can rebuild the turn | No | STATVS record location from USER config (timeout 15, async) |

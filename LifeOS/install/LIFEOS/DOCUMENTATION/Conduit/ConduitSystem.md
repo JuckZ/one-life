@@ -176,15 +176,15 @@ failed read never clobbers a good one. The tab reads the cached file; it never c
 > into the plist (`EnvironmentVariables`) — otherwise the scheduled job `spawn ENOENT`s and falls back
 > forever. On Linux both installers write a `systemd --user` unit instead (`LIFEOS/TOOLS/lib/SystemdUser.ts`, same installer-PATH bake). The app-focus adapter reads `osascript` on macOS. On Windows and Linux it reads a local ActivityWatch server (`127.0.0.1:5600`, window ∩ not-AFK, app names only, via `PULSE/Conduit/awClient.ts`) when one is running; with neither, rollup falls back to time derived from session cadence and labels it as derived.
 
-## Attention reader (the DA's live read, separate from Conduit)
+## Attention reader (the DA's live read, outside LifeOS)
 
-Conduit is the daily mirror and stays verdict-free. `LIFEOS/TOOLS/Attention.ts` is a separate layer the DA reads: live, AFK-aware window time from ActivityWatch → (1) inputs for inferring the principal's current state (`away`, `late-night`, `extended-distraction`, `scattered`, `focused`, `unclear`, each with a confidence and a `why`) and (2) evidence-carrying signals tied to TELOS ids (S1 daily leverage, C2 context switching, C3 late-night/game binges). No single alignment score; under `minActiveMin` of data it raises nothing.
+Conduit is the daily mirror and stays verdict-free. The DA's live read of where attention is going is a separate, standalone project: **one-watch** (`JuckZ/one-watch`, local `~/Projects/one-watch`). LifeOS does not contain its logic; it only wires it in.
 
-- CLI: `bun LIFEOS/TOOLS/Attention.ts now|day [date] [--json] [--titles]`.
-- Per turn: `hooks/AttentionSurface.hook.ts` (UserPromptSubmit) injects one `<attention-read>` block. A flag re-surfaces at most once per 60 minutes; cursor `MEMORY/STATE/attention-surface.json`; silent when ActivityWatch is down or in subagents.
-- Categories and thresholds are data: `USER/CONDUIT/attention.json` (self-initialising).
-- Titles are read locally only to categorise (so `x.com` counts as outward-facing) and are dropped before any output or cache. `--titles` is for a human at the terminal.
-- Boundary: Conduit and TELOS never write each other's files; Attention writes neither.
+- one-watch reads ActivityWatch (AFK-aware), infers a state (`away`, `late-night`, `extended-distraction`, `scattered`, `focused`, `unclear`, each with confidence and a reason) and raises evidence-carrying signals. No single score; under 20 minutes of data it raises nothing.
+- LifeOS side: `hooks/AttentionSurface.hook.ts` is a shim. It skips subagents, runs `one-watch hook`, and passes the `<attention-read>` block through. On first run it writes `~/.one-watch/config.json` from the `lifeos` preset (Chinese, signals tagged S1/C2/C3).
+- Location: `$ONE_WATCH_DIR`, else `~/Projects/one-watch`. Missing, slow (4 s), or ActivityWatch down means no output.
+- Categories, thresholds, language and tags are one-watch config (`~/.one-watch/config.json`), not LifeOS USER data.
+- Titles are used by one-watch in memory only and never printed or stored. Boundary unchanged: Conduit and TELOS never write each other's files; one-watch writes neither.
 
 ## Configuration (`USER/CONDUIT/config.json`)
 
@@ -212,7 +212,7 @@ records are kept.
 - Per-source opt-in; disable any source in config.
 - Tiered retention: raw discarded after `retentionDays`; daily record kept.
 - Kill switch: `enabled: false`, or `InstallConduit.ts --uninstall`.
-- No screenshots, no window titles stored, no message content in v1. (The Attention reader sees titles locally for categorisation only and never persists or prints them.)
+- No screenshots, no window titles stored, no message content in v1. (one-watch, the separate attention reader, sees titles in memory for categorisation only and never persists or prints them.)
 
 ## Versioning
 

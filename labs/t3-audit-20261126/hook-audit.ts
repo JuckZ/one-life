@@ -15,8 +15,11 @@ for (const [event, groups] of Object.entries<any>(hooks)) {
   const list = Array.isArray(groups) ? groups : (groups?.values ?? []);
   const names: Record<string, string[]> = {};
   for (const g of list) for (const h of (g.hooks ?? [])) {
-    const n = String(h.command).match(/hooks[\\/]([A-Za-z0-9_.-]+)/)?.[1] ?? String(h.command).slice(0, 40);
-    (names[n] ??= []).push(String(h.command));
+    // Key on the script name, but two different `bun …` commands must not collapse into
+    // one entry — a truncating prefix made unrelated lifecycle commands look duplicated.
+    const cmd = String(h.command);
+    const n = cmd.match(/hooks[\\/]([A-Za-z0-9_.-]+)/)?.[1] ?? cmd;
+    (names[n] ??= []).push(cmd);
   }
   const dups = Object.entries(names).filter(([, a]) => a.length > 1);
   dupTotal += dups.length;

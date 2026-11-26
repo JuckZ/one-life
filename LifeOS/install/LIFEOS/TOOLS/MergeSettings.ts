@@ -169,8 +169,42 @@ export function mergeSettingsPreserving(system: any, user: any, existing: any): 
       const inLayer = (system && typeof system === "object" && k in system) || (user && typeof user === "object" && k in user);
       if (!inLayer && k in existing) merged[k] = existing[k];
     }
+    // `hooks` is a map of EVENTS, not one value. InstallHooks writes ~50 entries across
+    // 11 events straight into settings.json; an overlay that named one event (an agent
+    // bridge adding UserPromptSubmit, say) replaced that whole map, so a merge silently
+    // turned off every LifeOS hook (2026-11-26). Merge per event instead: each event keeps
+    // the overlay's groups where the overlay speaks, and the installer's groups where it
+    // does not, with __merge annotations applied rather than copied through.
+    if (isObjectRecord(existing.hooks)) {
+      const overlayEvents = isObjectRecord(user?.hooks) ? user.hooks : {};
+      merged.hooks = mergeHooksByEvent(merged.hooks, existing.hooks, overlayEvents);
+    }
   }
   return merged;
+}
+
+/**
+ * Union two hook maps, one level below `hooks`: every EVENT is merged on its own through
+ * `mergeSettings`, so an event the overlay does not mention keeps the installer's groups,
+ * an event it appends to gains them, and an event it drops with `{ "__merge": "remove" }`
+ * is gone — turning a hook off on purpose must not be undone by a later merge.
+ */
+export function mergeHooksByEvent(
+  fromLayer: Record<string, unknown>,
+  fromExisting: Record<string, unknown>,
+  overlayEvents: Record<string, unknown> = {},
+): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...fromExisting };
+  for (const [event, overlayValue] of Object.entries(fromLayer)) {
+    if (isRemoveAnnotation(overlayValue) || isRemoveAnnotation(overlayEvents[event])) {
+      // The overlay turned this event off. Carry the removal, never the installer's groups.
+      delete out[event];
+      continue;
+    }
+    const base = event in fromExisting ? fromExisting[event] : undefined;
+    out[event] = base === undefined ? overlayValue : mergeSettings(base, overlayValue);
+  }
+  return out;
 }
 
 export function mergeSettings(system: any, user: any): any {

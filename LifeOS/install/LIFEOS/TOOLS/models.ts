@@ -219,11 +219,11 @@ export const OPENAI_LANE_EFFORT: Partial<Record<EffortLevel, "low" | "medium" | 
 
 export const CROSS_VENDOR: Record<string, string> = {
   pentestLow: "gpt-6-luna",              // OpenAI — Pentest's own low delegation (Luna) rung; Pentest keeps its OpenAI lineup. Terra rung dropped 2026-10-08 — Astra now carries Pentest's extreme thinking/planning, Sol and Luna the work
-  codexResearcher: "gpt-6.1-sol",      // OpenAI (Tier-2 egress); Sol since 2026-10-12 (principal: OpenAI use moves to Sol)
-  computerUse: "gpt-6-astra",          // OpenAI (Tier-2 egress) — ComputerUse skill's Astra leg via `codex exec` computer_use; passed as -m on every spawn (skills/ComputerUse/Tools/Run.ts)
-  codexResearcherFast: "gpt-6.1-sol", // OpenAI (Tier-2 egress); breadth-first sweep rung
-  rpgSummary: "gpt-6.1-sol",           // OpenAI (Tier-2 egress; Sol since 2026-10-12) — nightly session/campaign/character roll-ups: a few calls a night, quality over cost
-  rpgLabel: "gpt-6.1-sol",           // OpenAI (Tier-2 egress) — transcript diarization, beats, roll-ups over the API in parallel; live-probed 2026-09-05 (JSON mode, ~3s a chunk)
+  codexResearcher: "gpt-6.2-sol",      // OpenAI (Tier-2 egress); Sol since 2026-10-12, moved to 6.2 2026-11-26 (t3code audit: every non-Codex lane was still on a retired 6.1/6.x id)
+  computerUse: "gpt-6.2-astra",        // OpenAI (Tier-2 egress) — ComputerUse skill's Astra leg via `codex exec` computer_use; passed as -m on every spawn (skills/ComputerUse/Tools/Run.ts). 6.2 2026-11-26
+  codexResearcherFast: "gpt-6.2-sol", // OpenAI (Tier-2 egress); breadth-first sweep rung
+  rpgSummary: "gpt-6.2-sol",           // OpenAI (Tier-2 egress; Sol since 2026-10-12) — nightly session/campaign/character roll-ups: a few calls a night, quality over cost
+  rpgLabel: "gpt-6.2-sol",           // OpenAI (Tier-2 egress) — transcript diarization, beats, roll-ups over the API in parallel; live-probed 2026-09-05 (JSON mode, ~3s a chunk)
   geminiResearcher: "gemini-3.8-flash",// Google (trusted vendor since 2026-10-10; secret values never leave) — research lane; live-verified with our key + search grounding 2026-08-15
   gemini: "gemini-3.8-flash",          // Google (trusted vendor since 2026-10-10; secret values never leave) — vision judges (Assay, ArtDirection, video and film judges); moved off 3.1-pro-preview 2026-09-30. The agent moved to its own `argon` pin 2026-10-13, so judges stay on Flash and keep their calibration
   geminiImage: "gemini-3-pro-image", // Google (trusted vendor since 2026-10-10; secret values never leave) — image generation (Art and the video/headshot tools); was hardcoded in three Tools until 2026-09-03
@@ -235,15 +235,15 @@ export const CROSS_VENDOR: Record<string, string> = {
   // OpenAI is a trusted vendor for Restricted Data (OPERATIONAL_PREFERENCES § Model selection).
   openaiLow: "gpt-6-luna",           // OpenAI — the low API lane; scheduled jobs + classification-shaped helpers; stays on Luna (principal 2026-10-08, after Haiku 5.5 measured costlier for no gain)
   openaiMedium: "gpt-6-luna",          // OpenAI — the medium API lane: Luna at high reasoning (OPENAI_LANE_EFFORT), in place of Terra (principal 2026-10-08). AA index: Luna high 32.9 at $0.029/task vs Terra default 30.1 at $0.18
-  openaiHigh: "gpt-6.1-sol",         // OpenAI (GPT-6.1 Sol since 2026-09-29) — API lane: no function tools with reasoning (verified on a sibling synth tool); text-only over the API. Through `codex exec` it calls tools fine (live probe 2026-09-09, low effort) — see the `sol` agent lane below
-  openaiMax: "gpt-6.1-sol",            // OpenAI — the max API lane; Sol since 2026-10-12 (principal: "it's the better model right now")
-  openaiJudge: "gpt-6.1-sol",          // OpenAI — the cross-vendor judge seats (ArtDirection critique, Assay vision and level judges)
+  openaiHigh: "gpt-6.2-sol",         // OpenAI — API lane; GPT-6.2 Sol since 2026-11-26 (t3code audit found this still on the retired 6.1 id). Through `codex exec` it calls tools fine (live probe 2026-09-09)
+  openaiMax: "gpt-6.2-sol",            // OpenAI — the max API lane; Sol since 2026-10-12, 6.2 since 2026-11-26
+  openaiJudge: "gpt-6.2-sol",          // OpenAI — the cross-vendor judge seats (ArtDirection critique, Assay vision and level judges)
   // Agent lanes. Key = the
   // agent's subagent_type with a lower-cased first letter — AgentInvocation resolves the DISPATCH model from it
   // and ModelMix attributes the tokens. CodexProgress.ts `--lane <key>` resolves the model the same way.
-  astra: "gpt-6-astra",                // OpenAI — Astra agent (named Max until 2026-09-10; agents carry their model's name): Astra at MEDIUM reasoning, audit mode (read-only deep analysis + the cross-vendor audit) and build mode (absorbed the Forge agent 2026-09-10 — same lane, one agent per model). The Anthropic counterpart is the Opus agent on CURRENT.opus; Fable.md holds the in-family xhigh seat
+  astra: "gpt-6.2-astra",              // OpenAI — Astra agent (named Max until 2026-09-10; agents carry their model's name): Astra at MEDIUM reasoning, audit mode (read-only deep analysis + the cross-vendor audit) and build mode (absorbed the Forge agent 2026-09-10 — same lane, one agent per model). Moved to 6.2 2026-11-26 (t3code audit: the agent lane was still on gpt-6-astra, a retired id). The Anthropic counterpart is the Opus agent on CURRENT.opus; Fable.md holds the in-family xhigh seat
   argon: "gemini-4-argon",           // Google (trusted vendor; secret values never leave) — Argon agent via GeminiSearch.ts --pro; Gemini 4 Argon GA in the Gemini API 2026-10-13, live-probed with our key the same day (modelVersion gemini-4-argon), paid tier only
-  sol: "gpt-6.1-sol",                // OpenAI — Sol worker agent via codex, workspace-write; GPT-6.1 Sol, at Sonnet's rank for execution since 2026-09-29
+  sol: "gpt-6.2-sol",                // OpenAI — Sol worker agent via codex, workspace-write; GPT-6.2 Sol since 2026-11-26, at Sonnet's rank for execution since 2026-09-29
   luna: "gpt-6-luna",                // OpenAI — bench lane via codex (principal, 2026-10-14); newest Luna in the codex model roster
   terra: "gpt-5.6-terra",            // OpenAI — bench lane via codex (principal, 2026-10-14); newest Terra in the codex model roster (no GPT-6 Terra there)
   // Media, voice and search lanes. Skill Tools read their model ids from here, never hardcode them. Vendors with no public model roster
